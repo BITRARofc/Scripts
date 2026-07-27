@@ -1,5 +1,72 @@
+if Fluent then
+    Fluent:Destroy()
+end
+
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+
+---- Variaveis ----
 local player = game.Players.LocalPlayer
+local playerg = game.Players.LocalPlayer.PlayerGui
+local char = player.Character or player.CharacterAdded:Wait()
+local humanoid = char:FindFirstChildOfClass("Humanoid")
+local humanoidPart = char:FindFirstChild("HumanoidRootPart")
+local Players = game:GetService("Players")
+local playerId = game.Players.LocalPlayer.UserId
+local FLYING = false
+local QEfly = false
+local iyflyspeed = 1
+local vehicleflyspeed = 1
+local SpeedToggle
+local jp
+local wspeed
+local wantedPercent
+local autoAcceptT
+local funcionandoFind
+local funcionandoPickup
+local funcionandoBid
+local funcionandoUnload
+local activatedAuction = false
+local garagemAtual 
+local BidMode
+local areasTable = {}
+local areaDropdown
+local garagesSelected = {}
+local garageDropdown
+local gameRarity = {}
+local DiscartDropdown
+local discartValues = {}
+local PickToggle
 local playerPlot
+
+Services = setmetatable({}, {
+	__index = function(self, name)
+		local success, cache = pcall(function()
+			return cloneref(game:GetService(name))
+		end)
+		if success then
+			rawset(self, name, cache)
+			return cache
+		else
+			error("Invalid Service: " .. tostring(name))
+		end
+	end
+})
+local UserInputService = Services.UserInputService
+
+---- Funções ----
+
+for _, areas in ipairs(workspace.Areas:GetChildren()) do
+    table.insert(areasTable, areas.Name)
+end
+table.insert(areasTable, "Cargo Ship")
+
+local rarities = require(game:GetService("ReplicatedStorage").Modules.Rarities)
+
+for _, rarity in pairs(rarities) do
+    table.insert(gameRarity, _)
+end
+table.sort(gameRarity)
+
 for _, plot in ipairs(workspace._Plots:GetChildren()) do
     if plot:GetAttribute("OwnerName") == player.Name then
         playerPlot = plot
@@ -8,80 +75,893 @@ for _, plot in ipairs(workspace._Plots:GetChildren()) do
 end
 
 
-
-local function Stock()
-    local itemsininv = game:GetService("ReplicatedStorage").Events.Inventory.GetPlayerInventory:InvokeServer()
-    local gameItems = require(game:GetService("ReplicatedStorage").Modules.Items)
-    local stocked = game:GetService("ReplicatedStorage").Events.Plot.GetShopStock:InvokeServer(playerPlot)
-    local iGuid
-    local Id
-    local condition
-    local shelfGuid
-    local shelfName
-    local shelfCFrame
-    local occupied = {}
-    local key
-
-    for attrs, stock in pairs(stocked) do
-        if stock.Attrs.ShelfGUID and stock.Attrs.SnapPointName then
-            if not table.find(occupied, stock.Attrs.ShelfGUID.."-"..stock.Attrs.SnapPointName) then
-                occupied[stock.Attrs.ShelfGUID.."-"..stock.Attrs.SnapPointName] = true
-            end
-        end
-    end
-    
-    -- pega todos os itens
-    for guid, items in pairs(itemsininv) do
-        Id = items.ItemId
-        -- pega as info de todos os items do jogo, verifica se o id é o mesmo, verifica se é um item que é pra venda e armazena infos
-        for gameid, itemr in pairs(gameItems) do
-            if Id == gameid then
-                if itemr["Category"] ~= "Trophy" and itemr["Category"] ~= "Accessories" and itemr["NoRoll"] ~= true then
-                    condition = items.Condition
-                    iGuid = guid
-                    Id = items.ItemId
-                end
-            end
-        end
-
-        
-        for _, builds in ipairs(playerPlot.Furniture:GetChildren()) do
-            if builds:GetAttribute("IsShelf") then
-                local podiumid = builds:GetAttribute("GUID")
-                local podiumBase = builds.PrimaryPart
-                for _, snaps in ipairs(podiumBase:GetChildren()) do
-                    key = podiumid.."-"..snaps.Name
-                    if not occupied[key] then
-                        shelfGuid = podiumid
-                        shelfName = snaps.Name
-                        shelfCFrame = snaps.WorldCFrame
-                        print(key, occupied[key])
-                        break
-                    end
-                end
-            end
+function SpeedP()
+    while true do
+        if not speedactivated then
+            humanoid.WalkSpeed = 20
             break
-        end
-        
-        game:GetService("ReplicatedStorage").Events.Plot.PlaceStockItem:FireServer(
-        iGuid,
-        Id,
-        shelfCFrame,
-        nil,
-        shelfGuid,
-        shelfName,
-        nil,
-        nil,
-        true
-        )
-        task.wait(1)
-        occupied[shelfGuid.."-"..shelfName] = true
-        task.wait(1)
-
-        for gg, valuegg in pairs(occupied) do
-            print(gg, valuegg)
+        else
+            humanoid.WalkSpeed = wspeed
+            task.wait()
         end
     end
 end
 
-Stock()
+function JumpP()
+    while true do
+        if not jumpactivated then
+            humanoid.JumpPower = 50
+            break
+        else
+            humanoid.JumpPower = jp
+            task.wait()
+        end
+    end
+end
+
+function getRoot(char)
+	if char and char:FindFirstChildOfClass("Humanoid") then
+		return char:FindFirstChildOfClass("Humanoid").RootPart
+	else
+		return nil
+	end
+end
+
+function sFLY(vfly)
+	local plr = Players.LocalPlayer
+	local char = plr.Character or plr.CharacterAdded:Wait()
+	local humanoid = char:FindFirstChildOfClass("Humanoid")
+	if not humanoid then
+		repeat task.wait() until char:FindFirstChildOfClass("Humanoid")
+		humanoid = char:FindFirstChildOfClass("Humanoid")
+	end
+
+	if flyKeyDown or flyKeyUp then
+		flyKeyDown:Disconnect()
+		flyKeyUp:Disconnect()
+	end
+
+	local T = getRoot(char)
+	local CONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+	local lCONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+	local SPEED = 0
+
+	local function FLY()
+		FLYING = true
+		local BG = Instance.new('BodyGyro')
+		local BV = Instance.new('BodyVelocity')
+		BG.P = 9e4
+		BG.Parent = T
+		BV.Parent = T
+		BG.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+		BG.CFrame = T.CFrame
+		BV.Velocity = Vector3.new(0, 0, 0)
+		BV.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+		task.spawn(function()
+			repeat task.wait()
+				local camera = workspace.CurrentCamera
+				if not vfly and humanoid then
+					humanoid.PlatformStand = true
+				end
+
+				if CONTROL.L + CONTROL.R ~= 0 or CONTROL.F + CONTROL.B ~= 0 or CONTROL.Q + CONTROL.E ~= 0 then
+					SPEED = 50
+				elseif not (CONTROL.L + CONTROL.R ~= 0 or CONTROL.F + CONTROL.B ~= 0 or CONTROL.Q + CONTROL.E ~= 0) and SPEED ~= 0 then
+					SPEED = 0
+				end
+				if (CONTROL.L + CONTROL.R) ~= 0 or (CONTROL.F + CONTROL.B) ~= 0 or (CONTROL.Q + CONTROL.E) ~= 0 then
+					BV.Velocity = ((camera.CFrame.LookVector * (CONTROL.F + CONTROL.B)) + ((camera.CFrame * CFrame.new(CONTROL.L + CONTROL.R, (CONTROL.F + CONTROL.B + CONTROL.Q + CONTROL.E) * 0.2, 0).p) - camera.CFrame.p)) * SPEED
+					lCONTROL = {F = CONTROL.F, B = CONTROL.B, L = CONTROL.L, R = CONTROL.R}
+				elseif (CONTROL.L + CONTROL.R) == 0 and (CONTROL.F + CONTROL.B) == 0 and (CONTROL.Q + CONTROL.E) == 0 and SPEED ~= 0 then
+					BV.Velocity = ((camera.CFrame.LookVector * (lCONTROL.F + lCONTROL.B)) + ((camera.CFrame * CFrame.new(lCONTROL.L + lCONTROL.R, (lCONTROL.F + lCONTROL.B + CONTROL.Q + CONTROL.E) * 0.2, 0).p) - camera.CFrame.p)) * SPEED
+				else
+					BV.Velocity = Vector3.new(0, 0, 0)
+				end
+				BG.CFrame = camera.CFrame
+			until not FLYING
+			CONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+			lCONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+			SPEED = 0
+			BG:Destroy()
+			BV:Destroy()
+
+			if humanoid then humanoid.PlatformStand = false end
+		end)
+	end
+
+	flyKeyDown = UserInputService.InputBegan:Connect(function(input, processed)
+		if processed then return end
+		if input.KeyCode == Enum.KeyCode.W then
+			CONTROL.F = (vfly and vehicleflyspeed or iyflyspeed)
+		elseif input.KeyCode == Enum.KeyCode.S then
+			CONTROL.B = - (vfly and vehicleflyspeed or iyflyspeed)
+		elseif input.KeyCode == Enum.KeyCode.A then
+			CONTROL.L = - (vfly and vehicleflyspeed or iyflyspeed)
+		elseif input.KeyCode == Enum.KeyCode.D then
+			CONTROL.R = (vfly and vehicleflyspeed or iyflyspeed)
+		elseif input.KeyCode == Enum.KeyCode.E and QEfly then
+			CONTROL.Q = (vfly and vehicleflyspeed or iyflyspeed)*2
+		elseif input.KeyCode == Enum.KeyCode.Q and QEfly then
+			CONTROL.E = -(vfly and vehicleflyspeed or iyflyspeed)*2
+		end
+		pcall(function() camera.CameraType = Enum.CameraType.Track end)
+	end)
+
+	flyKeyUp = UserInputService.InputEnded:Connect(function(input, processed)
+		if processed then return end
+		if input.KeyCode == Enum.KeyCode.W then
+			CONTROL.F = 0
+		elseif input.KeyCode == Enum.KeyCode.S then
+			CONTROL.B = 0
+		elseif input.KeyCode == Enum.KeyCode.A then
+			CONTROL.L = 0
+		elseif input.KeyCode == Enum.KeyCode.D then
+			CONTROL.R = 0
+		elseif input.KeyCode == Enum.KeyCode.E then
+			CONTROL.Q = 0
+		elseif input.KeyCode == Enum.KeyCode.Q then
+			CONTROL.E = 0
+		end
+	end)
+	FLY()
+end
+
+function NOFLY()
+	FLYING = false
+	if flyKeyDown or flyKeyUp then flyKeyDown:Disconnect() flyKeyUp:Disconnect() end
+	if Players.LocalPlayer.Character:FindFirstChildOfClass('Humanoid') then
+		Players.LocalPlayer.Character:FindFirstChildOfClass('Humanoid').PlatformStand = false
+	end
+	pcall(function() workspace.CurrentCamera.CameraType = Enum.CameraType.Custom end)
+end
+
+local EventSO = game:GetService("ReplicatedStorage").Events.NPCShopper.ShowOffer
+
+for _, Connection in getconnections(EventSO.OnClientEvent) do
+    local old
+
+    old = hookfunction(Connection.Function, function(...)
+        if not autoAcceptT then
+            return old(...)
+        end
+
+        local id, npc, item, newprice, oldprice = ...
+
+        if ((newprice / oldprice) - 1) * 100 >= wantedPercent then
+            game.ReplicatedStorage.Events.NPCShopper.RespondOffer:FireServer(id, true)
+        else
+            game.ReplicatedStorage.Events.NPCShopper.RespondOffer:FireServer(id, false)
+        end
+
+        return old(...)
+    end)
+end
+
+function getGarages(wArea)
+    garagesSelected = {}
+
+    for _, garageD in ipairs(workspace._Debris.Garages:GetChildren()) do
+        if garageD:GetAttribute("AreaName") == wArea then
+            if not table.find(garagesSelected, garageD.Name) then
+                table.insert(garagesSelected, garageD.Name)
+            end
+        end
+    end
+
+    if garageDropdown then
+        garageDropdown:SetValues(garagesSelected)
+    end
+end
+
+function AutoFarm()
+    if not funcionandoFind then
+        return
+    end
+
+    
+    local function QuickSellItems()
+        -- Variaveis de comparação
+        local gameItems = require(game:GetService("ReplicatedStorage").Modules.Items)
+        
+        -- Substituir esse remote pelo getsellableitems pra vender items do carro tbm
+        local playerItems = game:GetService("ReplicatedStorage").Events.Pawn.GetSellableItems:InvokeServer()
+        
+        -- Pega as informações, verifica se o id do item do inventario, pega as informaçoes do banco de dados, vê se a raridade do item é igual à selecionada e vende
+        for gui, item in pairs(playerItems) do
+            local guid = {gui}
+            local id = item.ItemId
+            local name = item.Name
+            for gameid, itemr in pairs(gameItems) do
+                if id == gameid then
+                    for _, rarity in ipairs(discartValues) do
+                        if rarity == itemr["Rarity"] then
+                            game:GetService("ReplicatedStorage").Events.Pawn.SellItems:InvokeServer(guid)
+                            task.wait(0.8)
+                            break
+                        end
+                    end
+                    break
+                end
+            end
+        end
+    end
+    
+    local function LUnloadVehicle()
+        -- Variaveis do id do veiculo e quantidade de inventario
+        local MaxInv = player:GetAttribute("InventoryCap")
+        local vGuid = player:GetAttribute("EquippedVehicle")
+        
+        -- Guarda os itens que estão dentro do veiculo
+        local itemsInVehicle = game:GetService("ReplicatedStorage").Events.Vehicles.GetVehicleItems:InvokeServer(vGuid)
+        -- Pega o guid dos itens do veiculo, verifica so o inventario tem espaço, se nao tiver espaço, vende os items selecionado no dropdown discart
+        for guid, items in pairs(itemsInVehicle) do
+            local InUseInv = player:GetAttribute("InventoryCount")
+            if InUseInv < MaxInv then
+                game:GetService("ReplicatedStorage").Events.Vehicles.TransferVehicleItemsToInventory:FireServer({guid})
+                task.wait(0.3)
+            else
+                QuickSellItems()
+                task.wait()
+                game:GetService("ReplicatedStorage").Events.Vehicles.TransferVehicleItemsToInventory:FireServer({guid})
+                task.wait(0.3)
+            end
+        end
+        if humanoid.Sit then
+            repeat
+                humanoid.Sit = false
+                task.wait()
+            until not humanoid.Sit
+        end
+    end
+
+    local function Pickup()
+
+        local veiculoAt
+        local vGuid = player:GetAttribute("EquippedVehicle")
+
+        for _, getVehicle in ipairs(workspace:GetChildren()) do
+            if getVehicle:GetAttribute("VehicleGUID") == vGuid then
+                veiculoAt = getVehicle
+                break
+            end
+        end
+
+        -- Procurar por caixas e Abrir
+        for _, playerBoxItems in ipairs(workspace._Carryables:GetChildren()) do
+            if playerBoxItems:GetAttribute("Owner") == playerId then
+                if playerBoxItems:FindFirstChild("OpenBoxPrompt", true) then
+                    humanoidPart.Position = playerBoxItems.WorldPivot.Position
+                    task.wait(0.5)
+                    fireproximityprompt(playerBoxItems.Base.OpenBoxPrompt)
+                end
+            end
+        end
+        
+        task.wait(0.3)
+        -- Spawna o veiculo antes de coletar os itens pra não ter problema
+        SpawnVehicle()
+        task.wait(0.3)
+        for _, getVehicle in ipairs(workspace:GetChildren()) do
+            if getVehicle:GetAttribute("VehicleGUID") == vGuid then
+                veiculoAt = getVehicle
+                break
+            end
+        end
+        task.wait(1)
+        if humanoid.Sit then
+            repeat
+                humanoid.Sit = false
+                task.wait()
+            until not humanoid.Sit
+        end
+        task.wait(0.5)
+
+        -- Teleporta pro item e dps bota no carro
+        for _, playerNoBoxItems in ipairs(workspace._Carryables:GetChildren()) do
+            local InUse = veiculoAt:GetAttribute("CargoWeight")
+            local wLimit = veiculoAt:GetAttribute("CargoWeightLimit")
+            if playerNoBoxItems:GetAttribute("Owner") == playerId then
+                if (not playerNoBoxItems:FindFirstChild("OpenBoxPrompt", true)) then
+                    if playerNoBoxItems:FindFirstChild("PickupPrompt", true) then
+                        if InUse >= wLimit then
+                            SpawnVehicle()
+                            task.wait(2)
+                            LUnloadVehicle()
+                            task.wait()
+                            local prompt = playerNoBoxItems:FindFirstChild("PickupPrompt", true)
+                            humanoidPart.Position = playerNoBoxItems.WorldPivot.Position
+                            task.wait(0.3)
+                            fireproximityprompt(prompt)
+                            task.wait(0.5)
+                        elseif InUse < wLimit then
+                            local prompt = playerNoBoxItems:FindFirstChild("PickupPrompt", true)
+                            humanoidPart.Position = playerNoBoxItems.WorldPivot.Position
+                            task.wait(0.3)
+                            fireproximityprompt(prompt)
+                            task.wait(0.5)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    local function Stock()
+        local itemsininv = game:GetService("ReplicatedStorage").Events.Inventory.GetPlayerInventory:InvokeServer()
+        local gameItems = require(game:GetService("ReplicatedStorage").Modules.Items)
+        local iGuid
+        local Id
+        local condition
+        local shelfGuid
+        local shelfName
+        local shelfCFrame
+
+        for guid, items in pairs(itemsininv) do
+            Id = items.ItemId
+            for gameid, itemr in pairs(gameItems) do
+                if Id == gameid then
+                    if itemr["Category"] ~= "Trophy" and itemr["Category"] ~= "Accessories" and itemr["NoRoll"] ~= true then
+                        condition = items.Condition
+                        iGuid = guid
+                        Id = items.ItemId
+                    end
+                end
+            end
+            for _, value in ipairs(playerPlot.Furniture:GetChildren()) do
+                if value:GetAttribute("IsShelf") then
+                    if value:FindFirstChild("Base") then
+                        local shelfBase = value:FindFirstChild("Base")
+                        for _, svalue in ipairs(shelfBase:GetChildren()) do
+                            if svalue:FindFirstChild("ShelfAddItemPrompt") then
+                                shelfGuid = value:GetAttribute("GUID")
+                                shelfName = svalue.Name
+                                shelfCFrame = svalue.WorldCFrame
+                            end
+                        end
+                    end
+                end
+            end
+            game:GetService("ReplicatedStorage").Events.Plot.PlaceStockItem:FireServer(
+            iGuid,
+            Id,
+            shelfCFrame,
+            nil,
+            shelfGuid,
+            shelfName,
+            nil,
+            nil,
+            true
+            )
+            task.wait(1)
+        end
+    end
+
+    -- Comparadores de patrimonio
+    local minNetWorth = require(game:GetService("ReplicatedStorage").Modules.Garages)
+    local playerNetWorth = player.leaderstats["Net Worth"]:GetAttribute("RawValue")
+    
+    -- Pega uma garagem vazia
+    for _, garageD in ipairs(workspace._Debris.Garages:GetChildren()) do
+        if minNetWorth[garageDropdown.Value].MinNetWorth <= playerNetWorth and garageD.Name == garageDropdown.Value and garageD:FindFirstChild("EntrySquare") and not garageD:FindFirstChild("Auctioneer") then
+            garagemAtual = garageD
+            break
+        end
+    end
+
+    -- Teleporta e começa o leilao
+    humanoidPart.Position = garagemAtual.EntrySquare.WorldPivot.Position
+    wait(1)
+    fireproximityprompt(garagemAtual.EntrySquare.PromptPart.EnterAuction)
+
+    -- Espera até que o leilao começa
+    repeat
+        task.wait(0.1)
+    until playerg.UIControllerGui.AuctionBiddingContainer.Visible or not funcionandoFind
+
+    -- enquanto o leilão tiver rolando, ele fica apostando
+    repeat
+        game:GetService("ReplicatedStorage").Events.Auction.Bid:FireServer()
+        wait()
+    until not playerg.UIControllerGui.AuctionBiddingContainer.Visible or not funcionandoFind
+
+    task.wait(1)
+
+    Pickup()
+
+    task.wait(1)
+
+    for _, playerNoBoxItems in ipairs(workspace._Carryables:GetChildren()) do
+        if playerNoBoxItems:GetAttribute("Owner") == playerId then
+            if playerNoBoxItems:FindFirstChild("OpenBoxPrompt", true) or playerNoBoxItems:FindFirstChild("PickupPrompt", true) then
+                Pickup()
+                task.wait(1)
+            end
+        end
+    end
+
+    task.wait(1)
+
+    repeat
+        SpawnVehicle()
+        task.wait(0.5)
+    until humanoid.Sit == true
+    task.wait(1)
+
+    LUnloadVehicle()
+
+    Stock()
+
+end
+
+function AutoBid()
+    while true do
+        if not funcionandoBid then
+            break
+        end
+
+        if BidMode == "Safe Mode" then
+            if playerg.UIControllerGui.AuctionBiddingContainer.BidBarRow.Track.Cursor.Glow.Thickness == 5 then
+                game:GetService("ReplicatedStorage").Events.Auction.Bid:FireServer()
+                playerg.UIControllerGui.AuctionBiddingContainer.BidBarRow.Track.Cursor.Glow.Thickness = 2
+            end
+        elseif BidMode == "Instant Mode" then
+            if player:GetAttribute("InAuction") then
+                game:GetService("ReplicatedStorage").Events.Auction.Bid:FireServer()
+            end
+        end
+        task.wait()
+    end
+end
+
+function SpawnVehicle()
+    local vehicleGuid = player:GetAttribute("EquippedVehicle")
+
+    game:GetService("ReplicatedStorage").Events.Vehicles.RequestSpawn:FireServer(vehicleGuid)
+end
+
+function AutoPickup()
+    while true do
+        if not funcionandoPickup then
+            break
+        end
+        
+        local veiculoAt
+
+        for _, getVehicle in ipairs(workspace:GetChildren()) do
+            if getVehicle:GetAttribute("VehicleGUID") == vGuid then
+                veiculoAt = getVehicle
+                break
+            end
+        end
+        
+        for _, playerItems in ipairs(workspace._Carryables:GetChildren()) do
+            if playerItems:GetAttribute("Owner") == playerId then
+                if playerItems.Base:FindFirstChild("OpenBoxPrompt") then
+                    fireproximityprompt(playerItems.Base.OpenBoxPrompt)
+                end
+            end
+        end
+        
+        task.wait(1)
+
+        for _, playerItems in ipairs(workspace._Carryables:GetChildren()) do
+            local InUse = veiculoAt:GetAttribute("CargoWeight")
+            local wLimit = veiculoAt:GetAttribute("CargoWeightLimit")
+            if playerItems:GetAttribute("Owner") == playerId then
+                local prompt = playerItems:FindFirstChild("PickupPrompt", true)
+                if prompt then
+                    if InUse >= wLimit then
+                        funcionandoPickup = false
+                        PickToggle:SetValue(false)
+                        Fluent:Notify({
+                            Title = "Warn",
+                            Content = "Your Car Doesn't Have Space to Pickup The Items.",
+                            SubContent = "Unload Your Items And Click The Button Again", -- Optional
+                            Duration = 5 -- Set to nil to make the notification not disappear
+                        })
+                    else
+                        if humanoid.Sit then
+                            humanoid.Sit = false
+                        end
+                        humanoidPart.Position = playerItems.WorldPivot.Position
+                        if (humanoidPart.Position - veiculoAt.WorldPivot.Position).Magnitude < 40 then
+                            SpawnVehicle()
+                        end
+                        fireproximityprompt(prompt)
+                    end
+                end
+            end
+        end
+    end
+end
+
+function UnloadVehicle()
+    while true do
+        if not funcionandoUnload then
+            break
+        end
+
+        local MaxInv = player:GetAttribute("InventoryCap")
+        local InUseInv = player:GetAttribute("InventoryCount")
+        local vGuid = player:GetAttribute("EquippedVehicle")
+
+
+        for _, getVehicle in ipairs(workspace:GetChildren()) do
+            if getVehicle:GetAttribute("VehicleGUID") == vGuid then
+                local itemsInVehicle = game:GetService("ReplicatedStorage").Events.Vehicles.GetVehicleItems:InvokeServer(getVehicle:GetAttribute("VehicleGUID"))
+                for guid, items in pairs(itemsInVehicle) do
+                    if InUseInv < MaxInv then
+                        game:GetService("ReplicatedStorage").Events.Vehicles.TransferVehicleItemsToInventory:FireServer({guid})
+                        InUseInv += 1
+                        task.wait(0.3)
+                    else
+                        break
+                    end
+                end
+            end
+        end
+    end
+end
+
+function GetAllLostItems()  
+    local oldPos = humanoidPart.Position
+    local veiculoAt
+    local vGuid = player:GetAttribute("EquippedVehicle")
+
+    for _, getVehicle in ipairs(workspace:GetChildren()) do
+        if getVehicle:GetAttribute("VehicleGUID") == vGuid then
+            veiculoAt = getVehicle
+            break
+        end
+    end
+
+    for _, lostItems in ipairs(workspace._LostItems:GetChildren()) do
+        if not lostItems:GetAttribute("LostOwnerId") ~= playerId then
+            Fluent:Notify({
+                    Title = "Warn",
+                    Content = "You Already Have All Lost Items",
+                    SubContent = "", -- Optional
+                    Duration = 5 -- Set to nil to make the notification not disappear
+            })
+            break
+        end
+
+        if veiculoAt:GetAttribute("CargoWeight") >= veiculoAt:GetAttribute("CargoWeightLimit") then
+            Fluent:Notify({
+                    Title = "Warn",
+                    Content = "Your Car Doesn't Have Space to Pickup The Items.",
+                    SubContent = "Unload Your Items And Click The Button Again", -- Optional
+                    Duration = 5 -- Set to nil to make the notification not disappear
+            })
+            break
+        end
+
+        if lostItems:GetAttribute("Owner") == playerId then
+            humanoidPart.Position = lostItems.WorldPivot.Position
+            task.wait(1)
+            SpawnVehicle()
+            task.wait(1)
+            if humanoid.Sit then
+                repeat
+                    humanoid.Sit = false
+                    task.wait()
+                until not humanoid.Sit
+            end
+            task.wait(1)
+            humanoidPart.Position = lostItems.WorldPivot.Position
+            task.wait(0.3)
+            fireproximityprompt(lostItems:FindFirstChild("PickupPrompt", true))
+            task.wait(2)
+        end
+    end
+    local itemsininv = game:GetService("ReplicatedStorage").Events.Inventory.GetPlayerInventory:InvokeServer()
+    local indexedItems = game:GetService("ReplicatedStorage").Events.Collections.GetCollectionState:InvokeServer()
+    if indexedItems.discovered["37"] and not indexedItems.discovered["328"] then
+        for KeyId, getKey in pairs(itemsininv) do
+            if veiculoAt:GetAttribute("CargoWeight") >= veiculoAt:GetAttribute("CargoWeightLimit") then
+                break
+            end
+            if getKey.ItemId == "37" then
+                humanoidPart.Position = workspace.Areas["Back Alley"].Parts.LostItemGarage.Padlock:FindFirstChild("PromptPart").Position
+                task.wait(1)
+                game:GetService("ReplicatedStorage").Events.Inventory.EquipItem:FireServer(KeyId)
+                task.wait(0.5)
+                fireproximityprompt(workspace.Areas["Back Alley"].Parts.LostItemGarage.Padlock:FindFirstChild("PadlockPrompt", true))
+                task.wait(1)
+                humanoidPart.Position = workspace._LostItems.Scythe.PrimaryPart.Position
+                task.wait(0.3)
+                SpawnVehicle()
+                task.wait(1)
+                if humanoid.Sit then
+                    repeat
+                        humanoid.Sit = false
+                        task.wait()
+                    until not humanoid.Sit
+                end
+                task.wait(1)
+                humanoidPart.Position = workspace._LostItems.Scythe.PrimaryPart.Position
+                task.wait(0.5)
+                fireproximityprompt(workspace._LostItems.Scythe:FindFirstChild("PickupPrompt", true))
+                break
+            else
+            end
+        end
+    else
+    end
+    humanoidPart.Position = oldPos
+end
+
+function GetPriceWithCondition(basePrice, condition)
+    condition = math.clamp(condition, 0, 100) / 100
+
+    local floor = math.clamp(basePrice / 1000, 0, 1) * 0.35 + 0.25
+    local multiplier = floor + (1 - floor) * condition
+
+    local price = basePrice * multiplier
+
+    return math.floor(price * 100 + 0.5) / 100
+end
+
+---- Script ----
+
+local Window = Fluent:CreateWindow({
+    Title = "BITRAR's HUB",
+    SubTitle = "by iputthenewforgissonthejeep",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true, -- The blur may be detectable, setting this to false disables blur entirely
+    Theme = "Amethyst",
+    MinimizeKey = Enum.KeyCode.LeftAlt -- Used when theres no MinimizeKeybind
+})
+
+local Tabs = {
+    PlayerTab = Window:AddTab({ Title = "Player", Icon = "user" }),
+    FarmTab = Window:AddTab({ Title = "Farm", Icon = "wallet" }),
+    AuctionTab = Window:AddTab({ Title = "Auction", Icon = "package" }),
+    SlotTab = Window:AddTab({ Title = "Slot", Icon = "square" }),
+    MiscTab = Window:AddTab({ Title = "Misc", Icon = "square" }),
+    --VehicleTab = Window:AddTab({ Title = "Vehicle", Icon = "car" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+}
+
+---- Player Tab ----
+
+local PlayerSec = Tabs.PlayerTab:AddSection("Player")
+
+local Toggle = PlayerSec:AddToggle("Speed", 
+{
+    Title = "Enable Speed Boost", 
+    Description = "",
+    Default = false,
+    Callback = function(state)
+        speedactivated = state
+        SpeedP()
+    end
+})
+
+local Slider = PlayerSec:AddSlider("Slider", 
+{
+    Title = "Speed",
+    Description = "",
+    Default = 20,
+    Min = 20,
+    Max = 500,
+    Rounding = 0,
+    Callback = function(Value)
+        wspeed = Value
+    end
+})
+
+local Toggle = PlayerSec:AddToggle("Jump", 
+{
+    Title = "Enable Jump Boost", 
+    Description = "",
+    Default = false,
+    Callback = function(state)
+        jumpactivated = state
+        humanoid.UseJumpPower = state
+        JumpP()
+    end
+})
+
+local Slider = PlayerSec:AddSlider("Slider", 
+{
+    Title = "Jump Power",
+    Description = "",
+    Default = 50,
+    Min = 50,
+    Max = 500,
+    Rounding = 0,
+    Callback = function(Value)
+        jp = Value
+    end
+})
+
+local FlySec = Tabs.PlayerTab:AddSection("Flight Options")
+
+local FlyToggle = FlySec:AddToggle("Fly", 
+{
+    Title = "Fly", 
+    Description = "",
+    Default = false,
+    Callback = function(state)
+        if state == true then
+            sFLY()
+        else
+            NOFLY()
+        end
+    end
+})
+
+local Slider = FlySec:AddSlider("Slider", 
+{
+    Title = "Fly Speed",
+    Description = "",
+    Default = 3,
+    Min = 1,
+    Max = 10,
+    Rounding = 1,
+    Callback = function(Value)
+        iyflyspeed = Value
+    end
+})
+
+local Keybind = FlySec:AddKeybind("Active Fly", {
+    Title = "Fly Keybind",
+    Description = "Keybind To Enable/Disable Fly",
+    Mode = "Toggle",
+    Default = "F",
+    Callback = function(Value)
+        FlyToggle:SetValue(Value)
+    end
+})
+
+---- Farm Tab ----
+
+local AutoFarmSec = Tabs.FarmTab:AddSection("Auto Farm")
+
+areaDropdown = AutoFarmSec:AddDropdown("Dropdown", {
+    Title = "Select Area to Farm",
+    Description = "",
+    Values = areasTable,
+    Multi = false,
+    Default = nil,
+})
+
+
+
+garageDropdown = AutoFarmSec:AddDropdown("Dropdown", {
+    Title = "Select Garage to Farm",
+    Description = "This Dropdown Changes When u Change the Area",
+    Values = garagesSelected,
+    Multi = false,
+    Default = nil,
+})
+
+DiscartDropdown = AutoFarmSec:AddDropdown("MultiDropdown", {
+    Title = "Select Items To Auto Discart",
+    Description = "Note: Junk Items Are Discarded By Default.",
+    Values = gameRarity,
+    Multi = true,
+    Default = {"Junk"},
+})
+
+discartValues = {"Junk"}
+
+DiscartDropdown:OnChanged(function(Value)
+    discartValues = {}
+    for Value, State in next, Value do
+        table.insert(discartValues, Value)
+    end
+end)
+
+
+
+local AFToggle = AutoFarmSec:AddToggle("MyToggle", 
+{
+    Title = "Auto Farm",
+    Description = "",
+    Default = false,
+    Callback = function(state)
+        funcionandoFind = state
+        AutoFarm()
+    end 
+})
+
+areaDropdown:OnChanged(function(Value)
+    getGarages(Value)
+    AFToggle:SetValue(false)
+    garageDropdown:SetValue(nil)
+end)
+
+---- Auction Tab ----
+
+local AuctionSec = Tabs.AuctionTab:AddSection("Auction Helper")
+
+
+PickToggle = AuctionSec:AddToggle("MyToggle", 
+{
+    Title = "Auto Pickup", 
+    Description = "",
+    Default = false,
+    Callback = function(state)
+        funcionandoPickup = state
+        AutoPickup()
+    end 
+})
+
+local Toggle = AuctionSec:AddToggle("MyToggle", 
+{
+    Title = "Auto Bid", 
+    Description = "",
+    Default = false,
+    Callback = function(state)
+        funcionandoBid = state
+        AutoBid()
+    end 
+})
+
+local BidDropdown = AuctionSec:AddDropdown("Dropdown", {
+    Title = "Bid Mode",
+    Description = "",
+    Values = {"Safe Mode", "Instant Mode"},
+    Multi = false,
+    Default = 1,
+})
+
+BidDropdown:OnChanged(function(Value)
+    BidMode = Value
+end)
+
+local Toggle = AuctionSec:AddToggle("MyToggle", 
+{
+    Title = "Auto Unload", 
+    Description = "",
+    Default = false,
+    Callback = function(state)
+        funcionandoUnload = state
+        UnloadVehicle()
+    end 
+})
+
+
+---- Slot Tab ----
+
+local SellSec = Tabs.SlotTab:AddSection("Sell Items")
+
+local Slider = SellSec:AddSlider("Slider", 
+{
+    Title = "Min Percent",
+    Description = "Select the % which you want the script to auto-decline and auto-sell.",
+    Default = 0,
+    Min = 0,
+    Max = 100,
+    Rounding = 0,
+    Callback = function(Value)
+        wantedPercent = Value
+    end
+})
+
+local Toggle = SellSec:AddToggle("MyToggle", 
+{
+    Title = "Auto Accept Offers", 
+    Description = "",
+    Default = false,
+    Callback = function(state)
+        autoAcceptT = state
+    end 
+})
+
+---- Misc Tab ----
+
+local MiscSec = Tabs.MiscTab:AddSection("Misc Stuff")
+
+MiscSec:AddButton({
+    Title = "Get All Lost Items",
+    Description = "",
+    Callback = function()
+        GetAllLostItems() 
+    end
+})
+
+Window:SelectTab(1)
