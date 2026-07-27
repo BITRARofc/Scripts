@@ -1,0 +1,87 @@
+local player = game.Players.LocalPlayer
+local playerPlot
+for _, plot in ipairs(workspace._Plots:GetChildren()) do
+    if plot:GetAttribute("OwnerName") == player.Name then
+        playerPlot = plot
+        break
+    end
+end
+
+
+
+local function Stock()
+    local itemsininv = game:GetService("ReplicatedStorage").Events.Inventory.GetPlayerInventory:InvokeServer()
+    local gameItems = require(game:GetService("ReplicatedStorage").Modules.Items)
+    local stocked = game:GetService("ReplicatedStorage").Events.Plot.GetShopStock:InvokeServer(playerPlot)
+    local iGuid
+    local Id
+    local condition
+    local shelfGuid
+    local shelfName
+    local shelfCFrame
+    local occupied = {}
+    local key
+
+    for attrs, stock in pairs(stocked) do
+        if stock.Attrs.ShelfGUID and stock.Attrs.SnapPointName then
+            if not table.find(occupied, stock.Attrs.ShelfGUID.."-"..stock.Attrs.SnapPointName) then
+                occupied[stock.Attrs.ShelfGUID.."-"..stock.Attrs.SnapPointName] = true
+            end
+        end
+    end
+    
+    -- pega todos os itens
+    for guid, items in pairs(itemsininv) do
+        Id = items.ItemId
+        -- pega as info de todos os items do jogo, verifica se o id é o mesmo, verifica se é um item que é pra venda e armazena infos
+        for gameid, itemr in pairs(gameItems) do
+            if Id == gameid then
+                if itemr["Category"] ~= "Trophy" and itemr["Category"] ~= "Accessories" and itemr["NoRoll"] ~= true then
+                    condition = items.Condition
+                    iGuid = guid
+                    Id = items.ItemId
+                end
+            end
+        end
+
+        
+        for _, builds in ipairs(playerPlot.Furniture:GetChildren()) do
+            if builds:GetAttribute("IsShelf") then
+                local podiumid = builds:GetAttribute("GUID")
+                local podiumBase = builds.PrimaryPart
+                for _, snaps in ipairs(podiumBase:GetChildren()) do
+                    key = podiumid.."-"..snaps.Name
+                    if not occupied[key] then
+                        shelfGuid = podiumid
+                        shelfName = snaps.Name
+                        shelfCFrame = snaps.WorldCFrame
+                        print(key, occupied[key])
+                        break
+                    end
+                end
+            end
+            break
+        end
+        
+        game:GetService("ReplicatedStorage").Events.Plot.PlaceStockItem:FireServer(
+        iGuid,
+        Id,
+        shelfCFrame,
+        nil,
+        shelfGuid,
+        shelfName,
+        nil,
+        nil,
+        true
+        )
+        task.wait(1)
+        occupied[shelfGuid.."-"..shelfName] = true
+        task.wait(1)
+
+        for gg, valuegg in pairs(occupied) do
+            print(gg, valuegg)
+        end
+    end
+end
+
+Stock()
